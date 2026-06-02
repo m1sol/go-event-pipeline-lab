@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/joho/godotenv"
+	"github.com/m1sol/go-event-pipeline-lab/internal/dlq"
+	"github.com/m1sol/go-event-pipeline-lab/internal/retry"
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/segmentio/kafka-go"
@@ -40,6 +43,11 @@ func main() {
 
 	repo := postgres.NewRepository(pool)
 	service := appconsumer.NewService(repo)
+	dlqProducer := dlq.NewKafkaProducer(
+		brokers,
+		"orders.created.dlq",
+	)
+	defer dlqProducer.Close()
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: brokers,
@@ -61,23 +69,51 @@ func main() {
 
 		var event orders.OrderCreated
 		if err := json.Unmarshal(msg.Value, &event); err != nil {
-			log.Printf("invalid message: topic=%s partition=%d offset=%d error=%v",
-				msg.Topic, msg.Partition, msg.Offset, err,
-			)
+			log.Printf("invalid message: %v", err)
+
+			if dlqErr := publishToDLQ(ctx, dlqProducer, msg, err); dlqErr != nil {
+				log.Printf("publish to dlq failed: %v", dlqErr)
+				continue
+			}
+
+			if err := reader.CommitMessages(ctx, msg); err != nil {
+				log.Printf("commit after dlq failed: %v", err)
+				continue
+			}
+
 			continue
 		}
 
-		if err := service.HandleOrderCreated(ctx, event); err != nil {
-			log.Printf("handle message failed: topic=%s partition=%d offset=%d event_id=%s order_id=%s error=%v",
-				msg.Topic, msg.Partition, msg.Offset, event.EventID, event.OrderID, err,
-			)
-			continue
+		err = retry.Do(
+			ctx,
+			3,
+			500*time.Millisecond,
+			func() error {
+				return service.HandleOrderCreated(ctx, event)
+			},
+		)
+
+		if err != nil {
+			log.Printf("handle message failed: %v", err)
+
+			if dlqErr := publishToDLQ(
+				ctx,
+				dlqProducer,
+				msg,
+				err,
+			); dlqErr != nil {
+
+				log.Printf(
+					"publish to dlq failed: %v",
+					dlqErr,
+				)
+
+				continue
+			}
 		}
 
 		if err := reader.CommitMessages(ctx, msg); err != nil {
-			log.Printf("commit failed: topic=%s partition=%d offset=%d error=%v",
-				msg.Topic, msg.Partition, msg.Offset, err,
-			)
+			log.Printf("commit message failed: %v", err)
 			continue
 		}
 

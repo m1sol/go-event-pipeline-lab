@@ -52,7 +52,8 @@ func (s *Service) HandleOrderCreated(ctx context.Context, event orders.OrderCrea
 		mesUUID,
 	)
 	if errors.Is(err, postgres.ErrDuplicateMessage) {
-		return tx.Rollback(ctx)
+		_ = tx.Rollback(ctx)
+		return nil
 	}
 
 	if err != nil {
