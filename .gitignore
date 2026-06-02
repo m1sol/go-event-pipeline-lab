@@ -1,0 +1,21 @@
+# IDE
+.idea/
+*.iml
+
+# Local env
+.env
+.env.*
+
+# But keep examples
+!.env.example
+
+# Build artifacts
+/bin/
+/dist/
+*.test
+*.out
+
+# Archives
+*.zip
+*.tar
+*.tar.gz

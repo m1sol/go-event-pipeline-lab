@@ -22,12 +22,18 @@ func NewService(producer Producer) *Service {
 }
 
 type CreateOrderInput struct {
-	UserID string
-	Amount int64
+	MessageID string
+	UserID    string
+	Amount    int64
 }
 
 func (s *Service) CreateOrder(ctx context.Context, input CreateOrderInput) (OrderCreated, error) {
+	messageID := input.MessageID
+	if messageID == "" {
+		messageID = uuid.NewString()
+	}
 	event := OrderCreated{
+		MessageID: messageID,
 		EventID:   uuid.NewString(),
 		Version:   1,
 		OrderID:   uuid.NewString(),

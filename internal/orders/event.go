@@ -3,6 +3,7 @@ package orders
 import "time"
 
 type OrderCreated struct {
+	MessageID string    `json:"message_id"`
 	EventID   string    `json:"event_id"`
 	Version   int       `json:"version"`
 	OrderID   string    `json:"order_id"`
