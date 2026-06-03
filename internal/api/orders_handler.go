@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"github.com/m1sol/go-event-pipeline-lab/internal/orders"
+	"log"
 	"net/http"
 )
 
@@ -43,7 +44,8 @@ func (h *OrdersHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		Amount:    req.Amount,
 	})
 	if err != nil {
-		http.Error(w, "failed to create order event", http.StatusInternalServerError)
+		log.Printf("create order failed: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 

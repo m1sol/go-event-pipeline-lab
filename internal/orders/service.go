@@ -7,17 +7,17 @@ import (
 	"github.com/google/uuid"
 )
 
-type Producer interface {
-	PublishOrderCreated(ctx context.Context, event OrderCreated) error
+type Repository interface {
+	CreateOrder(ctx context.Context, event OrderCreated) error
 }
 
 type Service struct {
-	producer Producer
+	repo Repository
 }
 
-func NewService(producer Producer) *Service {
+func NewService(repo Repository) *Service {
 	return &Service{
-		producer: producer,
+		repo: repo,
 	}
 }
 
@@ -42,7 +42,7 @@ func (s *Service) CreateOrder(ctx context.Context, input CreateOrderInput) (Orde
 		CreatedAt: time.Now().UTC(),
 	}
 
-	if err := s.producer.PublishOrderCreated(ctx, event); err != nil {
+	if err := s.repo.CreateOrder(ctx, event); err != nil {
 		return OrderCreated{}, err
 	}
 
