@@ -1,15 +1,14 @@
 package main
 
 import (
+	"context"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+	"github.com/m1sol/go-event-pipeline-lab/internal/api"
+	"github.com/m1sol/go-event-pipeline-lab/internal/orders"
 	"log"
 	"net/http"
 	"os"
-	"strings"
-
-	"github.com/m1sol/go-event-pipeline-lab/internal/api"
-	appkafka "github.com/m1sol/go-event-pipeline-lab/internal/kafka"
-	"github.com/m1sol/go-event-pipeline-lab/internal/orders"
 )
 
 func main() {
@@ -18,13 +17,16 @@ func main() {
 		log.Println("Warning: .env file not found")
 	}
 	httpAddr := getEnv("HTTP_ADDR", ":8080")
-	kafkaBrokers := strings.Split(getEnv("KAFKA_BROKERS", "localhost:9092"), ",")
-	kafkaTopic := getEnv("KAFKA_TOPIC", "orders.created")
+	databaseURL := getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/orders?sslmode=disable")
 
-	producer := appkafka.NewProducer(kafkaBrokers, kafkaTopic)
-	defer producer.Close()
+	db, err := pgxpool.New(context.Background(), databaseURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
 
-	orderService := orders.NewService(producer)
+	repo := orders.NewPostgresRepository(db)
+	orderService := orders.NewService(repo)
 	orderHandler := api.NewOrdersHandler(orderService)
 
 	mux := http.NewServeMux()

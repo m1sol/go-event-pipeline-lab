@@ -40,3 +40,16 @@ func (p *Producer) PublishOrderCreated(ctx context.Context, event orders.OrderCr
 func (p *Producer) Close() error {
 	return p.writer.Close()
 }
+
+func (p *Producer) Publish(
+	ctx context.Context,
+	key string,
+	payload []byte,
+) error {
+	msg := kafka.Message{
+		Key:   []byte(key),
+		Value: payload,
+	}
+
+	return p.writer.WriteMessages(ctx, msg)
+}
